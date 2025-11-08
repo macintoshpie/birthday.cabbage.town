@@ -166,7 +166,7 @@
       max-height: 400px;
       display: block;
       transform: scaleX(-1);
-      object-fit: cover;
+      object-fit: contain;
       /* Mirror the video for selfie mode */
     }
 
@@ -316,18 +316,33 @@
 
     // Calculate and show crop guide
     function updateCropGuide() {
-      const videoRect = video.getBoundingClientRect();
+      const containerRect = videoContainer.getBoundingClientRect();
       const videoAspect = video.videoWidth / video.videoHeight;
+      const containerAspect = containerRect.width / containerRect.height;
 
+      // Calculate how the video is displayed with object-fit: contain
+      let displayedVideoWidth, displayedVideoHeight;
+
+      if (videoAspect > containerAspect) {
+        // Video is wider - width fills container
+        displayedVideoWidth = containerRect.width;
+        displayedVideoHeight = displayedVideoWidth / videoAspect;
+      } else {
+        // Video is taller - height fills container
+        displayedVideoHeight = containerRect.height;
+        displayedVideoWidth = displayedVideoHeight * videoAspect;
+      }
+
+      // Calculate crop guide dimensions for 16:9
       let cropWidth, cropHeight;
 
       if (videoAspect > TARGET_ASPECT_RATIO) {
-        // Video is wider than target, crop width
-        cropHeight = videoRect.height;
+        // Video is wider than 16:9, crop sides
+        cropHeight = displayedVideoHeight;
         cropWidth = cropHeight * TARGET_ASPECT_RATIO;
       } else {
-        // Video is taller than target, crop height
-        cropWidth = videoRect.width;
+        // Video is taller than 16:9, crop top/bottom
+        cropWidth = displayedVideoWidth;
         cropHeight = cropWidth / TARGET_ASPECT_RATIO;
       }
 
