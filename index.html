@@ -138,6 +138,29 @@
       justify-content: center;
     }
 
+    #crop-guide {
+      position: absolute;
+      border: 3px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+
+    #crop-guide::after {
+      content: 'Photo will be cropped to this area';
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
     #video {
       width: 100%;
       max-height: 400px;
@@ -266,6 +289,7 @@
 
     <div id="video-container">
       <video id="video" autoplay playsinline></video>
+      <div id="crop-guide"></div>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -285,8 +309,32 @@
     const captureBtn = document.getElementById('capture-btn');
     const message = document.getElementById('message');
     const videoContainer = document.getElementById('video-container');
+    const cropGuide = document.getElementById('crop-guide');
 
     let stream = null;
+    const TARGET_ASPECT_RATIO = 16 / 9; // Landscape crop
+
+    // Calculate and show crop guide
+    function updateCropGuide() {
+      const videoRect = video.getBoundingClientRect();
+      const videoAspect = video.videoWidth / video.videoHeight;
+
+      let cropWidth, cropHeight;
+
+      if (videoAspect > TARGET_ASPECT_RATIO) {
+        // Video is wider than target, crop width
+        cropHeight = videoRect.height;
+        cropWidth = cropHeight * TARGET_ASPECT_RATIO;
+      } else {
+        // Video is taller than target, crop height
+        cropWidth = videoRect.width;
+        cropHeight = cropWidth / TARGET_ASPECT_RATIO;
+      }
+
+      cropGuide.style.width = cropWidth + 'px';
+      cropGuide.style.height = cropHeight + 'px';
+      cropGuide.style.display = 'block';
+    }
 
     // Start camera
     startCameraBtn.addEventListener('click', async () => {
@@ -304,9 +352,19 @@
         stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
 
+        // Wait for video to load metadata
+        await new Promise(resolve => {
+          video.addEventListener('loadedmetadata', resolve, { once: true });
+        });
+
         startCameraBtn.style.display = 'none';
         captureBtn.style.display = 'block';
         videoContainer.style.display = 'block';
+
+        // Show crop guide after a short delay to ensure video is rendered
+        setTimeout(() => {
+          updateCropGuide();
+        }, 100);
 
         showMessage('Camera ready! Strike a pose! 🎉', 'success');
         setTimeout(() => hideMessage(), 2000);
@@ -322,19 +380,41 @@
         captureBtn.disabled = true;
         showMessage('Taking photo...', 'info');
 
-        // Set canvas size to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
         // Check if video has valid dimensions
-        if (canvas.width === 0 || canvas.height === 0) {
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
           throw new Error('Video not ready. Please wait a moment.');
         }
 
-        // Draw video frame to canvas (flip it back to normal)
+        // Calculate crop area in video coordinates
+        const videoAspect = video.videoWidth / video.videoHeight;
+        let cropWidth, cropHeight, cropX, cropY;
+
+        if (videoAspect > TARGET_ASPECT_RATIO) {
+          // Video is wider, crop sides
+          cropHeight = video.videoHeight;
+          cropWidth = cropHeight * TARGET_ASPECT_RATIO;
+          cropX = (video.videoWidth - cropWidth) / 2;
+          cropY = 0;
+        } else {
+          // Video is taller, crop top/bottom
+          cropWidth = video.videoWidth;
+          cropHeight = cropWidth / TARGET_ASPECT_RATIO;
+          cropX = 0;
+          cropY = (video.videoHeight - cropHeight) / 2;
+        }
+
+        // Set canvas to cropped size
+        canvas.width = cropWidth;
+        canvas.height = cropHeight;
+
+        // Draw cropped and flipped video frame to canvas
         const ctx = canvas.getContext('2d');
         ctx.scale(-1, 1); // Flip horizontally
-        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+        ctx.drawImage(
+          video,
+          cropX, cropY, cropWidth, cropHeight, // Source crop
+          -cropWidth, 0, cropWidth, cropHeight  // Destination (flipped)
+        );
         ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
 
         // Convert canvas to blob
@@ -383,6 +463,13 @@
     function hideMessage() {
       message.className = 'message';
     }
+
+    // Update crop guide on window resize
+    window.addEventListener('resize', () => {
+      if (stream && video.videoWidth > 0) {
+        updateCropGuide();
+      }
+    });
 
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
