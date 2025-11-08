@@ -13,9 +13,39 @@
     }
 
     body {
-      background: #000;
+      background: linear-gradient(-45deg,
+          #ee7752,
+          #e73c7e,
+          #23a6d5,
+          #23d5ab,
+          #7c3aed,
+          #f59e0b);
+      background-size: 400% 400%;
+      animation: gradientShift 8s ease infinite;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    @keyframes gradientShift {
+      0% {
+        background-position: 0% 50%;
+      }
+
+      25% {
+        background-position: 50% 100%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      75% {
+        background-position: 50% 0%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
     }
 
     .slideshow-container {
@@ -181,9 +211,16 @@
 
         const text = await res.text();
         const xml = new DOMParser().parseFromString(text, "application/xml");
-        const urls = [...xml.getElementsByTagName("Key")].map(
-          n => `${BUCKET_URL}/${n.textContent}`
-        );
+        const urls = [...xml.getElementsByTagName("Key")]
+          .map(n => n.textContent)
+          .filter(key => {
+            // Filter out directories (keys ending with /)
+            if (key.endsWith('/')) return false;
+            // Only include image files
+            const ext = key.toLowerCase().split('.').pop();
+            return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+          })
+          .map(key => `${BUCKET_URL}/${key}`);
 
         return urls;
       } catch (error) {
@@ -201,6 +238,8 @@
         }
         return;
       }
+
+      console.log(imageUrls);
 
       // Check if images have changed
       const urlsChanged = JSON.stringify(imageUrls) !== JSON.stringify(currentImages);
