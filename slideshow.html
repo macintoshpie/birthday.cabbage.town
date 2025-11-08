@@ -170,6 +170,30 @@
       display: block;
     }
 
+    .title-overlay {
+      position: fixed;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 3em;
+      font-weight: bold;
+      color: white;
+      text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
+      z-index: 200;
+      text-align: center;
+      pointer-events: none;
+      max-width: 90%;
+    }
+
+    .title-overlay .url {
+      background: rgba(147, 112, 219, 0.8);
+      padding: 5px 15px;
+      border-radius: 8px;
+      white-space: nowrap;
+      display: inline-block;
+    }
+
     @media (max-width: 768px) {
       .info-bar {
         bottom: 10px;
@@ -177,6 +201,11 @@
         left: 10px;
         text-align: center;
         font-size: 12px;
+      }
+
+      .title-overlay {
+        font-size: 2em;
+        top: 20px;
       }
     }
   </style>
@@ -192,6 +221,10 @@
     <!-- Slides will be dynamically added here -->
   </div>
 
+  <div class="title-overlay" id="title-overlay">
+
+  </div>
+
   <div class="info-bar" id="info-bar">
     <span id="photo-count">0 photos</span>
   </div>
@@ -205,6 +238,7 @@
     const loadingScreen = document.getElementById('loading-screen');
     const photoCount = document.getElementById('photo-count');
     const errorMessage = document.getElementById('error-message');
+    const titleOverlay = document.getElementById('title-overlay');
 
     let currentImages = [];
     let currentSlideIndex = 0;
@@ -215,6 +249,31 @@
     const POLL_INTERVAL = 8000; // Poll every 8 seconds
     const SLIDE_DURATION = 4000; // Show each slide for 4 seconds
     const BUCKET_URL = 'https://cabbagetown.nyc3.digitaloceanspaces.com';
+
+    // Title rotation
+    const TITLE_MESSAGES = [
+      '',
+      'photo booth https://birthday.cabbage.town'
+    ];
+    let currentTitleIndex = 0;
+
+    function rotateTitle() {
+      currentTitleIndex = (currentTitleIndex + 1) % TITLE_MESSAGES.length;
+      const message = TITLE_MESSAGES[currentTitleIndex];
+
+      // Wrap URL in a span with purple background
+      if (message.includes('https://')) {
+        const parts = message.split(/(https:\/\/[^\s]+)/);
+        titleOverlay.innerHTML = parts.map(part =>
+          part.startsWith('https://') ? `<span class="url">${part}</span>` : part
+        ).join('');
+      } else {
+        titleOverlay.textContent = message;
+      }
+    }
+
+    // Rotate title every 8 seconds
+    setInterval(rotateTitle, 8000);
 
     // Fetch images from Digital Ocean Spaces bucket
     async function fetchImages() {
@@ -264,11 +323,14 @@
         currentImages = imageUrls;
         photoCount.textContent = `${imageUrls.length} photo${imageUrls.length !== 1 ? 's' : ''}`;
 
+        // Shuffle the images for random order
+        const shuffledUrls = [...imageUrls].sort(() => Math.random() - 0.5);
+
         // Clear existing slides
         slideshowContainer.innerHTML = '';
 
         // Create slides with repeating background images
-        imageUrls.forEach((url, index) => {
+        shuffledUrls.forEach((url, index) => {
           const slide = document.createElement('div');
           slide.className = 'slide';
           slide.style.backgroundImage = `url(${url})`;
